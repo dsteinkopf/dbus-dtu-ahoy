@@ -253,16 +253,16 @@ class DbusDTUAHOYService:
             #total_ch1_currnet = (inverter_data)[self._getDTU_AHOY_CH2_I_DC()][0]
              
              
-            total_yieldpower = (inverter_data)[self._getDTU_AHOY_YIELDDAY()][0]
+            total_yieldpower = (inverter_data)[self._getDTU_AHOY_YIELDDAY()][0] # day
             total_yieldtotalpower = (inverter_data)[self._getDTU_AHOY_YIELDTOTAL()][0]
         
              # positive: consumption, negative: feed into grid
-            self._dbusservice['/Ac/Energy/Forward'] = 0 # total_yieldpower / 1000
+            self._dbusservice['/Ac/Energy/Forward'] = total_yieldpower / 1000
             self._dbusservice['/Ac/Power'] = total_power
             self._dbusservice['/ErrorCode'] = 0
             
             self._dbusservice['/Ac/MaxPower'] = 300
-            self._dbusservice['/Ac/PowerLimit'] = 300 
+            # self._dbusservice['/Ac/PowerLimit'] = 300 # this makes Multiplus change its Zero-Injection behaviour
  
             
             self._dbusservice['/Ac/L1/Energy/Forward'] = 0
@@ -270,15 +270,17 @@ class DbusDTUAHOYService:
             self._dbusservice['/Ac/L1/Current'] = 0 
             self._dbusservice['/Ac/L1/Power'] = 0
             
-            self._dbusservice['/Ac/L2/Energy/Forward'] = 0
-            self._dbusservice['/Ac/L2/Voltage'] = 0
-            self._dbusservice['/Ac/L2/Current'] = 0 
-            self._dbusservice['/Ac/L2/Power'] = 0
+            self._dbusservice['/Ac/L2/Energy/Forward'] =  total_yieldpower / 1000 # day
+            self._dbusservice['/Ac/L2/Voltage'] = total_voltage
+            self._dbusservice['/Ac/L2/Current'] = total_current
+            self._dbusservice['/Ac/L2/Power'] = total_power
                        
-            self._dbusservice['/Ac/L3/Energy/Forward'] = 0 # total_yieldpower / 1000
-            self._dbusservice['/Ac/L3/Voltage'] = total_voltage
-            self._dbusservice['/Ac/L3/Current'] = total_current
-            self._dbusservice['/Ac/L3/Power'] = total_power
+            self._dbusservice['/Ac/L3/Energy/Forward'] = 0
+            self._dbusservice['/Ac/L3/Voltage'] = 0
+            self._dbusservice['/Ac/L3/Current'] = 0
+            self._dbusservice['/Ac/L3/Power'] = 0
+
+            # logging.info("total_yieldpower: %s" % (total_yieldpower))
 
             # increment UpdateIndex - to show that new data is available
             index = self._dbusservice['/UpdateIndex'] + 1  # increment index
@@ -337,7 +339,7 @@ def main():
                 '/Ac/Power': {'initial': 0, 'textformat': _w},
                 '/ErrorCode': {'initial': 0, 'textformat': _w},
                 '/Ac/MaxPower': {'initial': 0, 'textformat': _w},
-                '/Ac/PowerLimit': {'initial': 300, 'textformat': _w},
+                # '/Ac/PowerLimit': {'initial': 300, 'textformat': _w},
                 
 				 
                 '/Ac/L1/Energy/Forward': {'initial': None, 'textformat': _kwh},
