@@ -95,7 +95,7 @@ class DbusDTUAHOYService:
 
         # add _update function 'timer'
         # pause 1000ms before the next request
-        gobject.timeout_add(500, self._update)
+        gobject.timeout_add(1000, self._update)
 
         # add _signOfLife 'timer' to get feedback in log every 5minutes
         gobject.timeout_add(self._getSignOfLifeInterval()
@@ -265,22 +265,23 @@ class DbusDTUAHOYService:
             # self._dbusservice['/Ac/PowerLimit'] = 300 # this makes Multiplus change its Zero-Injection behaviour
  
             
-            self._dbusservice['/Ac/L1/Energy/Forward'] = 0
-            self._dbusservice['/Ac/L1/Voltage'] = 0
-            self._dbusservice['/Ac/L1/Current'] = 0 
-            self._dbusservice['/Ac/L1/Power'] = 0
+            #self._dbusservice['/Ac/L1/Energy/Forward'] = 0
+            #self._dbusservice['/Ac/L1/Voltage'] = 0
+            #self._dbusservice['/Ac/L1/Current'] = 0 
+            #self._dbusservice['/Ac/L1/Power'] = 0
             
             self._dbusservice['/Ac/L2/Energy/Forward'] =  total_yieldpower / 1000 # day
             self._dbusservice['/Ac/L2/Voltage'] = total_voltage
             self._dbusservice['/Ac/L2/Current'] = total_current
             self._dbusservice['/Ac/L2/Power'] = total_power
                        
-            self._dbusservice['/Ac/L3/Energy/Forward'] = 0
-            self._dbusservice['/Ac/L3/Voltage'] = 0
-            self._dbusservice['/Ac/L3/Current'] = 0
-            self._dbusservice['/Ac/L3/Power'] = 0
+            #self._dbusservice['/Ac/L3/Energy/Forward'] = 0
+            #self._dbusservice['/Ac/L3/Voltage'] = 0
+            #self._dbusservice['/Ac/L3/Current'] = 0
+            #self._dbusservice['/Ac/L3/Power'] = 0
 
             # logging.info("total_yieldpower: %s" % (total_yieldpower))
+            # logging.info("total_yieldpower = %s kWh, total_power: %s W" % (total_yieldpower / 1000, total_power))
 
             # increment UpdateIndex - to show that new data is available
             index = self._dbusservice['/UpdateIndex'] + 1  # increment index
@@ -339,23 +340,23 @@ def main():
                 '/Ac/Power': {'initial': 0, 'textformat': _w},
                 '/ErrorCode': {'initial': 0, 'textformat': _w},
                 '/Ac/MaxPower': {'initial': 0, 'textformat': _w},
-                # '/Ac/PowerLimit': {'initial': 300, 'textformat': _w},
+                #no '/Ac/PowerLimit': {'initial': 300, 'textformat': _w},
                 
 				 
-                '/Ac/L1/Energy/Forward': {'initial': None, 'textformat': _kwh},
-                '/Ac/L1/Voltage': {'initial': 0, 'textformat': _v},
-                '/Ac/L1/Current': {'initial': 0, 'textformat': _a},
-                '/Ac/L1/Power': {'initial': 0, 'textformat': _w},				 
+                #'/Ac/L1/Energy/Forward': {'initial': None, 'textformat': _kwh},
+                #'/Ac/L1/Voltage': {'initial': 0, 'textformat': _v},
+                #'/Ac/L1/Current': {'initial': 0, 'textformat': _a},
+                #'/Ac/L1/Power': {'initial': 0, 'textformat': _w},				 
      
                 '/Ac/L2/Energy/Forward': {'initial': None, 'textformat': _kwh},
                 '/Ac/L2/Voltage': {'initial': 0, 'textformat': _v},
                 '/Ac/L2/Current': {'initial': 0, 'textformat': _a},
                 '/Ac/L2/Power': {'initial': 0, 'textformat': _w},	
                 
-                '/Ac/L3/Energy/Forward': {'initial': None, 'textformat': _kwh},
-                '/Ac/L3/Voltage': {'initial': 0, 'textformat': _v},
-                '/Ac/L3/Current': {'initial': 0, 'textformat': _a},
-                '/Ac/L3/Power': {'initial': 0, 'textformat': _w},	
+                #'/Ac/L3/Energy/Forward': {'initial': None, 'textformat': _kwh},
+                #'/Ac/L3/Voltage': {'initial': 0, 'textformat': _v},
+                #'/Ac/L3/Current': {'initial': 0, 'textformat': _a},
+                #'/Ac/L3/Power': {'initial': 0, 'textformat': _w},	
 
             })
 
