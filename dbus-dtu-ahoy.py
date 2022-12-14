@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 #
-#(10.2022 hfhausen)
-#/data/dbus-dtu-ahoy/dbus-dtu-ahoy.py
+# 10.2022 hfhausen
 # als Vorlage diente  dbus-iobroker-smartmeter.py
+# vgl. https://www.mikrocontroller.net/topic/525778?page=14 "von Ha F. (harry_f)17.10.2022 17:35"
+#
+# Updated by DSTK_2022-12-14 for new ahoy api
 
 #https://github.com/victronenergy/venus/wiki/dbus#pv-inverters
 #https://github.com/victronenergy/venus/wiki/dbus#grid-and-genset-meter
