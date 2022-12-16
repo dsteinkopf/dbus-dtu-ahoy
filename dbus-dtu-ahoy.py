@@ -44,17 +44,15 @@ else:
 
 
 class DbusDTUAHOYService:
-    def __init__(self, servicename, deviceinstance, paths, productname='DTU Ahoy', connection='DTU AHOY HTTP JSON service'):
-        self._dbusservice = VeDbusService(
-            "{}.http_{:02d}".format(servicename, deviceinstance))
+    def __init__(self, servicename, deviceinstance, paths, connection='DTU AHOY HTTP JSON service'):
+        self._dbusservice = VeDbusService(servicename)
         self._paths = paths
 
         self._config = self._getConfig()
 
         self._fetch_AHOYData()
  
-        logging.debug("%s /DeviceInstance = %d" %
-                      (servicename, deviceinstance))
+        logging.debug("%s /DeviceInstance = %d" % (servicename, deviceinstance))
 
         # Create the management objects, as specified in the ccgx dbus-api document
         self._dbusservice.add_path('/Mgmt/ProcessName', __file__)
@@ -65,8 +63,8 @@ class DbusDTUAHOYService:
         # Create the mandatory objects
         self._dbusservice.add_path('/DeviceInstance', deviceinstance)
         self._dbusservice.add_path('/ProductId', 789 )  ## Keine Ahnung was hier stehen muss!?!
-        self._dbusservice.add_path('/ProductName', productname)
-        self._dbusservice.add_path('/CustomName', productname)
+        self._dbusservice.add_path('/ProductName', self._getDTU_AHOY_DEVICENAME())
+        self._dbusservice.add_path('/CustomName', self._getDTU_AHOY_DEVICENAME())
         #self._dbusservice.add_path('/Latency', None)
         self._dbusservice.add_path('/FirmwareVersion', 0.1)
         self._dbusservice.add_path('/HardwareVersion', 0)
@@ -90,7 +88,6 @@ class DbusDTUAHOYService:
         # last update
         self._lastUpdate = 0
 
-        # add _update function 'timer'
         # pause 1000ms before the next request
         gobject.timeout_add(1000, self._update)
 
@@ -146,10 +143,7 @@ class DbusDTUAHOYService:
         return self._ac_data[index]
 
     def _signOfLife(self):
-        logging.info("--- Start: sign of life ---")
-        logging.info("Last _update() call: %s" % (self._lastUpdate))
         logging.info("Last '/Ac/Power': %s" % (self._dbusservice['/Ac/Power']))
-        logging.info("--- End: sign of life ---")
         return True
 
     def _update(self):
@@ -224,8 +218,8 @@ def main():
 
         # start our main-service
         pvac_output = DbusDTUAHOYService(
-            servicename='com.victronenergy.pvinverter',
-            deviceinstance=77,
+            servicename='com.victronenergy.pvinverter.ahoy_1',
+            deviceinstance=79,
             
             paths={
                 # We should not send 0 as initial value - this might just be wrong during normal operation (daylight)
