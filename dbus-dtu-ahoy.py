@@ -9,6 +9,12 @@
 #https://github.com/victronenergy/venus/wiki/dbus#pv-inverters
 #https://github.com/victronenergy/venus/wiki/dbus#grid-and-genset-meter
 #https://github.com/victronenergy/venus/wiki/dbus-api
+#
+# copy to device:
+#   rsync -rltv --exclude '.git' --exclude 'pics' --exclude '.DS_Store' ../dbus-dtu-ahoy/ root@venus.steinkopf.net:/data/dbus-dtu-ahoy/
+#
+# install an run:
+#   ssh root@venus bash /data/dbus-dtu-ahoy/install.sh
 
 
 #import normal packages
@@ -63,8 +69,8 @@ class DbusDTUAHOYService:
         # Create the mandatory objects
         self._dbusservice.add_path('/DeviceInstance', deviceinstance)
         self._dbusservice.add_path('/ProductId', 789 )  ## Keine Ahnung was hier stehen muss!?!
-        self._dbusservice.add_path('/ProductName', self._getDTU_AHOY_DEVICENAME())
-        self._dbusservice.add_path('/CustomName', self._getDTU_AHOY_DEVICENAME())
+        self._dbusservice.add_path('/ProductName', self._getConfigValue('DTU_AHOY_DEVICENAME'))
+        self._dbusservice.add_path('/CustomName', self._getConfigValue('DTU_AHOY_DEVICENAME'))
         #self._dbusservice.add_path('/Latency', None)
         self._dbusservice.add_path('/FirmwareVersion', 0.1)
         self._dbusservice.add_path('/HardwareVersion', 0)
@@ -72,7 +78,7 @@ class DbusDTUAHOYService:
         self._dbusservice.add_path('/Role', 'inverter')
         # normaly only needed for pvinverter
         # DSTK_2022-10-24 Position was 1. Changed to 0
-        self._dbusservice.add_path('/Position', 0)   ## 0=AC input 1; 1=AC output  PV-Wechselrichter ; 2=AC input 2 GENERATOR
+        self._dbusservice.add_path('/Position', int(self._getConfigValue('DTU_AHOY_POSITION')))
         #self._dbusservice.add_path('/Serial', self._getDTU_AHOYSerial())
         self._dbusservice.add_path('/Serial', 2)
         self._dbusservice.add_path('/UpdateIndex', 0)
@@ -88,10 +94,10 @@ class DbusDTUAHOYService:
         # last update
         self._lastUpdate = 0
 
-        # pause 1000ms before the next request
+        # call _update every 1000ms
         gobject.timeout_add(1000, self._update)
 
-        # add _signOfLife 'timer' to get feedback in log every 5minutes
+        # add _signOfLife 'timer' to get feedback in log every configured minutes
         gobject.timeout_add(self._getSignOfLifeInterval() * 60*1000, self._signOfLife)
 
     def _getConfig(self):
@@ -100,24 +106,15 @@ class DbusDTUAHOYService:
                     (os.path.dirname(os.path.realpath(__file__))))
         return config
 
+    def _getConfigValue(self, configentryname):
+        return self._config['DEFAULT'][configentryname]
+
     def _getSignOfLifeInterval(self):
-        value = self._config['DEFAULT']['SignOfLifeLog']
-
-        if not value:
-            value = 0
-
-        return int(value)
+        value = self._getConfigValue('SignOfLifeLog')
+        return int(value) if value else 1
         
-    def _getDTU_AHOY_DEVICENAME(self):
-        value = self._config['DEFAULT']['DTU_AHOY_DEVICENAME']
-        return value        
-
-    def _getDTU_AHOY_Path(self):
-        value = self._config['DEFAULT']['DTU_AHOY_HOSTPATH']
-        return value
-
     def _fetch_AHOYData(self):
-        URL = self._getDTU_AHOY_Path() + "/api/live" 
+        URL = self._getConfigValue('DTU_AHOY_HOSTPATH') + "/api/live"
         inverter = requests.request("GET", URL)
 
         # check for response
@@ -125,7 +122,7 @@ class DbusDTUAHOYService:
             raise ConnectionError("No response from AHOY_DTU - %s" % (URL))
 
         live_data = inverter.json()
-        devicename = self._getDTU_AHOY_DEVICENAME()
+        devicename = self._getConfigValue('DTU_AHOY_DEVICENAME')
         
         all_inverters = live_data['inverter']
         self._inverter_data = list(filter(lambda arr: arr['name'] == devicename, all_inverters))[0]
@@ -157,7 +154,7 @@ class DbusDTUAHOYService:
             self._dbusservice['/Ac/Power'] = self._getFieldByName('P_AC')
             self._dbusservice['/ErrorCode'] = 0
             
-            self._dbusservice['/Ac/MaxPower'] = 300
+            self._dbusservice['/Ac/MaxPower'] = int(self._getConfigValue('DTU_AHOY_MAX_POWER'))
             # self._dbusservice['/Ac/PowerLimit'] = 300 # this makes Multiplus change its zero injection behaviour
 
             # TODO: make L2 configurable            
@@ -180,9 +177,12 @@ class DbusDTUAHOYService:
             # update lastupdate vars
             self._lastUpdate = time.time()
         except Exception as e:
-            logging.critical('Error at %s', '_update', exc_info=e)
+            logging.critical('Error at %s. Now sleep and exit...', '_update', exc_info=e)
+            time.sleep(10)
+            sys.exit(4)
 
-        # return true, otherwise add_timeout will be removed from GObject - see docs http://library.isr.ist.utl.pt/docs/pygtk2reference/gobject-functions.html#function-gobject--timeout-add
+        # return true, otherwise add_timeout will be removed from GObject
+        #  - see docs http://library.isr.ist.utl.pt/docs/pygtk2reference/gobject-functions.html#function-gobject--timeout-add
         return True
 
     def _handlechangedvalue(self, path, value):
@@ -226,7 +226,7 @@ def main():
                 '/Ac/Energy/Forward': {'initial': None, 'textformat': _kwh},
                 '/Ac/Power': {'initial': None, 'textformat': _w},
                 '/ErrorCode': {'initial': 0, 'textformat': _w},
-                '/Ac/MaxPower': {'initial': 300, 'textformat': _w},
+                '/Ac/MaxPower': {'initial': None, 'textformat': _w},
                 #no '/Ac/PowerLimit': {'initial': 300, 'textformat': _w},
                 				 
                 '/Ac/L2/Energy/Forward': {'initial': None, 'textformat': _kwh},
@@ -235,13 +235,13 @@ def main():
                 '/Ac/L2/Power': {'initial': None, 'textformat': _w},	
             })
 
-        logging.info(
-            'Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
+        logging.info('Connected to dbus, and switching over to gobject.MainLoop() (= event based)')
         mainloop = gobject.MainLoop()
         mainloop.run()
     except Exception as e:
-        logging.critical('Error at %s', 'main', exc_info=e)
-
+        logging.critical('Error here: %s', 'main', exc_info=e)
+        time.sleep(10)
+        sys.exit(3)
 
 if __name__ == "__main__":
     main()
