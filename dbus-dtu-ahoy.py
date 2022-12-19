@@ -22,11 +22,10 @@ from dbus.mainloop.glib import DBusGMainLoop
 from gi.repository import GLib
 import dbus
 import dbus.service
-import inspect
 import logging
-import argparse
 import sys
 import os
+import json
 
 # Victron packages
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), './ext/velib_python'))
@@ -41,7 +40,6 @@ import platform
 import time
 import requests  # for http GET
 import configparser  # for config/ini file
-import struct
 
 if sys.version_info.major == 2:
     import gobject
@@ -115,29 +113,37 @@ class DbusDTUAHOYService:
         
     def _fetch_AHOYData(self):
         URL = self._getConfigValue('DTU_AHOY_HOSTPATH') + "/api/live"
-        inverter = requests.request("GET", URL)
+        inverter = requests.request("GET", URL, timeout=5.0)
 
         # check for response
         if not inverter:
             raise ConnectionError("No response from AHOY_DTU - %s" % (URL))
 
         live_data = inverter.json()
-        devicename = self._getConfigValue('DTU_AHOY_DEVICENAME')
+        if not live_data:
+            raise ValueError("Converting response to JSON failed: inverter=%s" % inverter)
         
+        devicename = self._getConfigValue('DTU_AHOY_DEVICENAME')        
         all_inverters = live_data['inverter']
         self._inverter_data = list(filter(lambda arr: arr['name'] == devicename, all_inverters))[0]
+        ts_last_success = self._inverter_data['ts_last_success']
+        if time.time() - ts_last_success > 5*60:
+            self._has_recent_data = False
+            return False
         ac_data_index = self._inverter_data['ch_names'].index('AC')
         self._ac_data = self._inverter_data['ch'][ac_data_index]
         
         self._ac_data_field_names = live_data['ch0_fld_names']
 
-        # check for Json
-        if not self._inverter_data:
-            raise ValueError("Converting response to JSON failed")
+        self._has_recent_data = True
+        return True
     
     def _getFieldByName(self, fieldname):
-        index = self._ac_data_field_names.index(fieldname)
-        return self._ac_data[index]
+        if self._has_recent_data:
+            index = self._ac_data_field_names.index(fieldname)
+            return self._ac_data[index]
+        else:
+            return None
 
     def _signOfLife(self):
         logging.info("Last '/Ac/Power': %s" % (self._dbusservice['/Ac/Power']))
@@ -145,12 +151,16 @@ class DbusDTUAHOYService:
 
     def _update(self):
         try:
-            self._fetch_AHOYData()
+            got_recent_data = self._fetch_AHOYData()
             
             # send data to DBus
 
-             # positive: consumption, negative: feed into grid
-            self._dbusservice['/Ac/Energy/Forward'] = self._getFieldByName('YieldDay') / 1000 # YieldDay = W
+            yield_day_wh = self._getFieldByName('YieldDay')
+            yield_day_kwh = yield_day_wh / 1000 if yield_day_wh else None
+
+            # positive: consumption, negative: feed into grid
+
+            self._dbusservice['/Ac/Energy/Forward'] = yield_day_kwh
             self._dbusservice['/Ac/Power'] = self._getFieldByName('P_AC')
             self._dbusservice['/ErrorCode'] = 0
             
@@ -158,10 +168,10 @@ class DbusDTUAHOYService:
             # self._dbusservice['/Ac/PowerLimit'] = 300 # this makes Multiplus change its zero injection behaviour
 
             # TODO: make L2 configurable            
-            self._dbusservice['/Ac/L2/Energy/Forward'] =  self._getFieldByName('YieldDay') / 1000 # YieldDay = W
+            self._dbusservice['/Ac/L2/Energy/Forward'] =  yield_day_kwh
             self._dbusservice['/Ac/L2/Voltage'] = self._getFieldByName('U_AC')
             self._dbusservice['/Ac/L2/Current'] = self._getFieldByName('I_AC')
-            self._dbusservice['/Ac/L2/Power'] = self._getFieldByName('P_AC')
+            self._dbusservice['/Ac/L2/Power'] = self._getFieldByName('P_AC') if got_recent_data else 0
                        
             #logging.info("voltage = %s" % self._getFieldByName('U_AC'))                    
             #logging.info("YieldDay = %s kWh, P_AC: %s W" % (
@@ -176,6 +186,19 @@ class DbusDTUAHOYService:
 
             # update lastupdate vars
             self._lastUpdate = time.time()
+
+        except json.decoder.JSONDecodeError as e:
+            logging.error('JSONDecodeError in _update', exc_info=e)
+            # fall through...
+
+        except ValueError as e:
+            logging.error('ValueError in _update', exc_info=e)
+            # fall through...
+
+        except requests.exceptions.ConnectionError as e:
+            logging.error('ConnectionError in _update', exc_info=e)
+            # fall through...
+
         except Exception as e:
             logging.critical('Error at %s. Now sleep and exit...', '_update', exc_info=e)
             time.sleep(10)
