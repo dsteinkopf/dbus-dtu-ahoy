@@ -199,6 +199,10 @@ class DbusDTUAHOYService:
             logging.error('ConnectionError in _update', exc_info=e)
             # fall through...
 
+        except requests.exceptions.ReadTimeout as e:
+            logging.error('ReadTimeout in _update', exc_info=e)
+            # fall through...
+
         except Exception as e:
             logging.critical('Error at %s. Now sleep and exit...', '_update', exc_info=e)
             time.sleep(10)
